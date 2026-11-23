@@ -60,6 +60,7 @@ export default function TestimonialEditorModal({ testimonial = null, onClose, on
     try {
       const res = await fetch('/api/admin/testimonials', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });

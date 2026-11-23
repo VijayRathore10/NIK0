@@ -1,25 +1,23 @@
 import { getDbProducts, saveDbProduct, deleteDbProduct } from '@/lib/db';
-import { cookies } from 'next/headers';
+import { verifyAdminRequest, unauthorizedResponse } from '@/lib/adminAuth';
 
-async function checkAuth() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get('nik_admin_auth');
-  return token?.value === 'nik-authorized-session-token-v1';
-}
+export async function GET(request) {
+  if (!(await verifyAdminRequest(request))) {
+    return unauthorizedResponse();
+  }
 
-export async function GET() {
   const products = await getDbProducts(true);
   return Response.json(products);
 }
 
 export async function POST(request) {
-  if (!(await checkAuth())) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await verifyAdminRequest(request))) {
+    return unauthorizedResponse();
   }
 
   try {
     const productData = await request.json();
-    if (!productData.name) {
+    if (!productData?.name) {
       return Response.json({ error: 'Product name is required' }, { status: 400 });
     }
 
@@ -31,8 +29,8 @@ export async function POST(request) {
 }
 
 export async function DELETE(request) {
-  if (!(await checkAuth())) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await verifyAdminRequest(request))) {
+    return unauthorizedResponse();
   }
 
   try {

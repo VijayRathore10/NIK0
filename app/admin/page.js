@@ -32,7 +32,7 @@ import {
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
-  const [password, setPassword] = useState('admin123');
+  const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
 
@@ -74,9 +74,8 @@ export default function AdminPage() {
   const verifyAuth = useCallback(async () => {
     setCheckingAuth(true);
     try {
-      const storedToken = typeof window !== 'undefined' ? sessionStorage.getItem('nik_admin_auth') || '' : '';
       const res = await fetch('/api/admin/auth', {
-        headers: storedToken ? { 'x-admin-token': storedToken } : {},
+        credentials: 'include',
       });
       const data = await res.json();
       setIsAuthenticated(Boolean(data.authenticated));
@@ -95,13 +94,22 @@ export default function AdminPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [prodsRes, catsRes, testiRes, setsRes, inqsRes] = await Promise.all([
-        fetch('/api/admin/products').then((r) => r.json()),
-        fetch('/api/admin/categories').then((r) => r.json()),
-        fetch('/api/admin/testimonials').then((r) => r.json()),
-        fetch('/api/admin/settings').then((r) => r.json()),
-        fetch('/api/admin/inquiries').then((r) => r.json()),
+      const responses = await Promise.all([
+        fetch('/api/admin/products', { credentials: 'include' }),
+        fetch('/api/admin/categories', { credentials: 'include' }),
+        fetch('/api/admin/testimonials', { credentials: 'include' }),
+        fetch('/api/admin/settings', { credentials: 'include' }),
+        fetch('/api/admin/inquiries', { credentials: 'include' }),
       ]);
+
+      if (responses.some((r) => r.status === 401)) {
+        setIsAuthenticated(false);
+        return;
+      }
+
+      const [prodsRes, catsRes, testiRes, setsRes, inqsRes] = await Promise.all(
+        responses.map((r) => r.json())
+      );
 
       setProducts(Array.isArray(prodsRes) ? prodsRes : []);
       setCategories(Array.isArray(catsRes) ? catsRes : []);
@@ -130,6 +138,7 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/admin/auth', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),
       });
@@ -139,11 +148,8 @@ export default function AdminPage() {
         throw new Error(data.error || 'Invalid administrator password');
       }
 
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('nik_admin_auth', 'nik-authorized-session-token-v1');
-      }
+      setPassword('');
       setIsAuthenticated(true);
-      loadData();
     } catch (err) {
       setLoginError(err.message || 'Login failed');
     } finally {
@@ -152,10 +158,10 @@ export default function AdminPage() {
   };
 
   const handleLogout = async () => {
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('nik_admin_auth');
-    }
-    await fetch('/api/admin/auth', { method: 'DELETE' });
+    await fetch('/api/admin/auth', {
+      method: 'DELETE',
+      credentials: 'include',
+    });
     setIsAuthenticated(false);
   };
 
@@ -164,7 +170,14 @@ export default function AdminPage() {
     if (!window.confirm(`Are you sure you want to delete "${name}"?`)) return;
 
     try {
-      const res = await fetch(`/api/admin/products?id=${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/products?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.status === 401) {
+        setIsAuthenticated(false);
+        return;
+      }
       if (res.ok) {
         setProducts(products.filter((p) => p._id !== id));
         showToast(`Deleted ${name}`);
@@ -192,7 +205,14 @@ export default function AdminPage() {
     if (!window.confirm(`Are you sure you want to delete category "${title}"?`)) return;
 
     try {
-      const res = await fetch(`/api/admin/categories?id=${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/categories?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.status === 401) {
+        setIsAuthenticated(false);
+        return;
+      }
       if (res.ok) {
         setCategories(categories.filter((c) => c._id !== id && c.slug !== id));
         showToast(`Deleted category "${title}"`);
@@ -220,7 +240,14 @@ export default function AdminPage() {
     if (!window.confirm(`Are you sure you want to delete testimonial from "${name}"?`)) return;
 
     try {
-      const res = await fetch(`/api/admin/testimonials?id=${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/testimonials?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.status === 401) {
+        setIsAuthenticated(false);
+        return;
+      }
       if (res.ok) {
         setTestimonials(testimonials.filter((t) => t._id !== id));
         showToast(`Deleted testimonial from "${name}"`);
@@ -257,9 +284,14 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/admin/products', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated),
       });
+      if (res.status === 401) {
+        setIsAuthenticated(false);
+        return;
+      }
       if (res.ok) {
         showToast(
           `Updated position for "${target.name}" to ${
@@ -287,9 +319,14 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/admin/testimonials', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated),
       });
+      if (res.status === 401) {
+        setIsAuthenticated(false);
+        return;
+      }
       if (res.ok) {
         showToast(
           `Updated position for "${target.customerName}" to ${
@@ -308,13 +345,48 @@ export default function AdminPage() {
   const handleDeleteInquiry = async (id) => {
     if (!window.confirm('Delete this inquiry record?')) return;
     try {
-      const res = await fetch(`/api/admin/inquiries?id=${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/inquiries?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.status === 401) {
+        setIsAuthenticated(false);
+        return;
+      }
       if (res.ok) {
         setInquiries(inquiries.filter((inq) => inq._id !== id));
         showToast('Inquiry removed');
       }
     } catch {
       alert('Failed to delete inquiry');
+    }
+  };
+
+  // Download Database Backup
+  const handleDownloadBackup = async () => {
+    try {
+      const res = await fetch('/api/admin/backup', {
+        credentials: 'include',
+      });
+      if (res.status === 401) {
+        setIsAuthenticated(false);
+        return;
+      }
+      if (!res.ok) {
+        alert('Failed to download backup.');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `nikexports-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Failed to download backup.');
     }
   };
 
@@ -333,9 +405,15 @@ export default function AdminPage() {
 
       const res = await fetch('/api/admin/backup', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(parsed),
       });
+
+      if (res.status === 401) {
+        setIsAuthenticated(false);
+        return;
+      }
 
       if (res.ok) {
         showToast('Database successfully restored!');
@@ -424,9 +502,6 @@ export default function AdminPage() {
                 placeholder="Enter admin password"
                 className="w-full px-4 py-3 rounded-xl bg-[#0A101D] border border-slate-700 text-white text-sm focus:outline-none focus:border-amber-400"
               />
-              <p className="text-[11px] text-slate-500 mt-1.5 flex items-center justify-between">
-                <span>Default setup password: <strong className="text-amber-400 font-mono">admin123</strong></span>
-              </p>
             </div>
 
             <button
@@ -497,15 +572,15 @@ export default function AdminPage() {
         <div className="flex items-center gap-2.5">
           {/* Backup & Restore Controls */}
           <div className="hidden sm:flex items-center gap-1.5 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
-            <a
-              href="/api/admin/backup"
-              download
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors"
+            <button
+              type="button"
+              onClick={handleDownloadBackup}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors cursor-pointer"
               title="Download full JSON backup"
             >
               <Download className="w-3.5 h-3.5 text-amber-400" />
               <span>Backup</span>
-            </a>
+            </button>
 
             <button
               onClick={() => fileInputRef.current?.click()}

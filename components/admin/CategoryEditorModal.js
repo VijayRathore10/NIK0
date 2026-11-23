@@ -43,6 +43,7 @@ export default function CategoryEditorModal({ category = null, onClose, onSave }
     try {
       const res = await fetch('/api/admin/categories', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });

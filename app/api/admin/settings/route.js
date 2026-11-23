@@ -1,20 +1,18 @@
 import { getDbSiteSettings, saveDbSiteSettings } from '@/lib/db';
-import { cookies } from 'next/headers';
+import { verifyAdminRequest, unauthorizedResponse } from '@/lib/adminAuth';
 
-async function checkAuth() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get('nik_admin_auth');
-  return token?.value === 'nik-authorized-session-token-v1';
-}
+export async function GET(request) {
+  if (!(await verifyAdminRequest(request))) {
+    return unauthorizedResponse();
+  }
 
-export async function GET() {
   const settings = await getDbSiteSettings(true);
   return Response.json(settings);
 }
 
 export async function POST(request) {
-  if (!(await checkAuth())) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await verifyAdminRequest(request))) {
+    return unauthorizedResponse();
   }
 
   try {
@@ -22,6 +20,6 @@ export async function POST(request) {
     const saved = await saveDbSiteSettings(data);
     return Response.json(saved);
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: err.message || 'Failed to save settings' }, { status: 500 });
   }
 }

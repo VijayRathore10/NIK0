@@ -1,18 +1,12 @@
 import { getRawDatabase, restoreDatabase } from '@/lib/db';
-import { cookies } from 'next/headers';
+import { verifyAdminRequest, unauthorizedResponse } from '@/lib/adminAuth';
 
-async function checkAuth() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get('nik_admin_auth');
-  return token?.value === 'nik-authorized-session-token-v1';
-}
-
-export async function GET() {
-  if (!(await checkAuth())) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+export async function GET(request) {
+  if (!(await verifyAdminRequest(request))) {
+    return unauthorizedResponse();
   }
 
-  const raw = getRawDatabase();
+  const raw = await getRawDatabase();
   return new Response(JSON.stringify(raw, null, 2), {
     headers: {
       'Content-Type': 'application/json',
@@ -22,13 +16,13 @@ export async function GET() {
 }
 
 export async function POST(request) {
-  if (!(await checkAuth())) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await verifyAdminRequest(request))) {
+    return unauthorizedResponse();
   }
 
   try {
     const data = await request.json();
-    restoreDatabase(data);
+    await restoreDatabase(data);
     return Response.json({ success: true, message: 'Database successfully restored from backup' });
   } catch (err) {
     return Response.json({ error: err.message || 'Failed to restore database' }, { status: 500 });

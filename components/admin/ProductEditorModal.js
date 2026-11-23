@@ -104,6 +104,7 @@ export default function ProductEditorModal({
     try {
       const res = await fetch('/api/admin/products', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });

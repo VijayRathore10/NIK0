@@ -1,15 +1,9 @@
 import { getDbInquiries, deleteDbInquiry } from '@/lib/db';
-import { cookies } from 'next/headers';
+import { verifyAdminRequest, unauthorizedResponse } from '@/lib/adminAuth';
 
-async function checkAuth() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get('nik_admin_auth');
-  return token?.value === 'nik-authorized-session-token-v1';
-}
-
-export async function GET() {
-  if (!(await checkAuth())) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+export async function GET(request) {
+  if (!(await verifyAdminRequest(request))) {
+    return unauthorizedResponse();
   }
 
   const inquiries = await getDbInquiries();
@@ -17,16 +11,20 @@ export async function GET() {
 }
 
 export async function DELETE(request) {
-  if (!(await checkAuth())) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await verifyAdminRequest(request))) {
+    return unauthorizedResponse();
   }
 
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+    if (!id) {
+      return Response.json({ error: 'Missing inquiry ID' }, { status: 400 });
+    }
+
     await deleteDbInquiry(id);
     return Response.json({ success: true });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: err.message || 'Failed to delete inquiry' }, { status: 500 });
   }
 }

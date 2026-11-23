@@ -1,47 +1,51 @@
 import { cookies } from 'next/headers';
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
-const AUTH_COOKIE = 'nik_admin_auth';
-const TOKEN_VALUE = 'nik-authorized-session-token-v1';
+import {
+  ADMIN_AUTH_COOKIE,
+  getAdminSessionSecret,
+  getAdminCookieOptions,
+  getClearedAdminCookieOptions,
+  verifyAdminPassword,
+  verifyAdminRequest,
+} from '@/lib/adminAuth';
 
 export async function POST(request) {
   try {
-    const { password } = await request.json();
+    const body = await request.json().catch(() => null);
+    const password = typeof body?.password === 'string' ? body.password : '';
 
-    if (password === ADMIN_PASSWORD) {
-      const cookieStore = await cookies();
-      cookieStore.set(AUTH_COOKIE, TOKEN_VALUE, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 60 * 60 * 24 * 7, // 7 days
-      });
-      return Response.json({ success: true });
+    const { configured, valid } = verifyAdminPassword(password);
+
+    if (!configured) {
+      return Response.json(
+        { error: 'Admin authentication is not configured on the server.' },
+        { status: 503 }
+      );
     }
 
-    return Response.json({ error: 'Incorrect administrator password' }, { status: 401 });
-  } catch (err) {
+    if (!valid) {
+      return Response.json(
+        { error: 'Incorrect administrator password' },
+        { status: 401 }
+      );
+    }
+
+    const sessionSecret = getAdminSessionSecret();
+    const cookieStore = await cookies();
+    cookieStore.set(ADMIN_AUTH_COOKIE, sessionSecret, getAdminCookieOptions());
+
+    return Response.json({ success: true });
+  } catch {
     return Response.json({ error: 'Authentication failed' }, { status: 500 });
   }
 }
 
 export async function GET(request) {
-  const headerToken =
-    request.headers.get('x-admin-token') ||
-    request.headers.get('authorization')?.replace('Bearer ', '');
-  if (headerToken === TOKEN_VALUE) {
-    return Response.json({ authenticated: true });
-  }
-
-  const cookieStore = await cookies();
-  const token = cookieStore.get(AUTH_COOKIE);
-  const isAuthenticated = token?.value === TOKEN_VALUE;
+  const isAuthenticated = await verifyAdminRequest(request);
   return Response.json({ authenticated: isAuthenticated });
 }
 
 export async function DELETE() {
   const cookieStore = await cookies();
-  cookieStore.delete(AUTH_COOKIE);
+  cookieStore.set(ADMIN_AUTH_COOKIE, '', getClearedAdminCookieOptions());
   return Response.json({ success: true });
 }
