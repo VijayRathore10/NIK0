@@ -70,10 +70,10 @@ export default function Footer({ settings }) {
           <ul className="text-sm text-paper/80 space-y-2.5">
             <li>
               <a
-                href="mailto:sales@nikexports.com"
+                href="mailto:info@nikexports.com"
                 className="hover:text-amber transition-colors flex items-center gap-2"
               >
-                sales@nikexports.com
+                info@nikexports.com
               </a>
             </li>
             <li>
